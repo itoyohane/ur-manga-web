@@ -1,3 +1,5 @@
+import { normalizeCoverUrl } from './cover.mjs';
+
 export const CATEGORIES = [
   { key: 'long', label: '长篇漫画', english: 'THE LONG JOURNEY', hint: '陪你走过漫长岁月的故事' },
   { key: 'medium', label: '中篇漫画', english: 'JUST THE RIGHT LENGTH', hint: '在恰好的篇幅里，念念不忘' },
@@ -19,6 +21,7 @@ export function normalizeState(value) {
         title: item.title.slice(0, 70), author: String(item.author || '').slice(0, 50),
         note: String(item.note || '').slice(0, 80),
         cover: typeof item.cover === 'string' && /^data:image\/(jpeg|png|webp);base64,/.test(item.cover) ? item.cover : '',
+        coverUrl: normalizeCoverUrl(item.coverUrl),
       };
     }
   }

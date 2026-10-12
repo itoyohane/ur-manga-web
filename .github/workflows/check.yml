@@ -21,5 +21,6 @@ jobs:
           node --check dist/app.mjs
           node --check dist/model.mjs
           node --check dist/search.mjs
-      - name: Test search and saved state
+          node --check dist/cover.mjs
+      - name: Test search, covers and saved state
         run: node --test tests/*.test.mjs

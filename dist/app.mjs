@@ -1,5 +1,6 @@
 import { CATEGORIES, emptyState, normalizeState } from './model.mjs';
 import { createSearchEngine, parseQuery } from './search.mjs';
+import { normalizeCoverUrl, coverSource, importCover } from './cover.mjs';
 
 const $ = id => document.getElementById(id);
 const storageKey = 'mangalist:picks:v1';
@@ -8,6 +9,8 @@ try { state = normalizeState(JSON.parse(localStorage.getItem(storageKey))); } ca
 let activeKey = 'long';
 let draft = null;
 let coverPromise = Promise.resolve();
+let coverRevision = 0;
+let coverPending = false;
 let manualCover = '';
 let uploadPending = false;
 let uploadRevision = 0;
@@ -58,8 +61,11 @@ function renderSlots() {
     top.append(element('span', 'slot-number', `0${index + 1}`), element('span', 'slot-label', category.label));
     const copy = element('span', 'slot-copy');
     const media = element('span', 'slot-media');
-    if (item?.cover) {
-      const image = element('img'); image.src = item.cover; image.alt = ''; media.append(image);
+    const source = coverSource(item);
+    if (source) {
+      const image = element('img'); image.alt = ''; image.referrerPolicy = 'no-referrer';
+      image.addEventListener('error', () => media.replaceChildren(element('span', 'cover-fallback', '封面加载失败')), { once: true });
+      image.src = source; media.append(image);
     } else media.textContent = item ? '漫' : '+';
     media.setAttribute('aria-hidden', 'true');
     copy.append(media, element('span', 'slot-title', item?.title || '选择漫画'));
@@ -72,6 +78,27 @@ function renderSlots() {
   const count = Object.values(state.picks).filter(Boolean).length;
   $('progress').textContent = `${count} / 4 已选`;
   $('download').disabled = count === 0;
+  const missing = CATEGORIES.filter(category => state.picks[category.key]?.coverUrl && !state.picks[category.key]?.cover);
+  $('cover-warning').hidden = !missing.length;
+  $('cover-warning').textContent = missing.length ? `${missing.map(category => category.label).join('、')}的封面暂不能加入下载图片。点击对应漫画上传封面，或使用文字封面下载。` : '';
+}
+
+function showDraftCover() {
+  if (!draft) return;
+  const chosen = draft;
+  const source = coverSource(chosen);
+  const wrap = $('selected-cover-wrap');
+  wrap.replaceChildren();
+  if (source) {
+    const image = element('img'); image.alt = `${chosen.title}的封面`; image.referrerPolicy = 'no-referrer';
+    image.addEventListener('error', () => {
+      if (draft !== chosen || wrap.children[0] !== image) return;
+      wrap.replaceChildren(element('span', 'cover-fallback', '封面加载失败'));
+      $('cover-status').textContent = '封面暂时无法显示，可以上传图片替换。';
+    }, { once: true });
+    image.src = source; wrap.append(image);
+  } else wrap.append(element('span', 'cover-fallback', '暂无封面'));
+  $('cover-status').textContent = coverPending ? '正在准备封面，完成后即可随推荐卡下载…' : chosen.cover ? '封面已就绪，可随推荐卡下载。' : chosen.coverUrl ? '在线封面可供显示；下载图片将使用文字封面。上传封面后即可一同下载。' : '这部作品暂无封面，可以上传图片。';
 }
 
 function selectTab(mode) {
@@ -94,6 +121,7 @@ function showDraft() {
   if (draft) {
     $('selected-name').textContent = draft.title;
     $('recommendation').value = draft.note || '';
+    showDraftCover();
     $('remove').hidden = !state.picks[activeKey];
     $('recommendation').focus();
   } else selectTab('search');
@@ -104,6 +132,9 @@ function openPicker(category) {
   activeKey = category.key;
   draft = state.picks[activeKey] ? { ...state.picks[activeKey] } : null;
   coverPromise = Promise.resolve();
+  coverRevision++;
+  coverPending = false;
+  $('replace-cover').value = '';
   $('picker-title').textContent = `我的${category.label}`;
   $('picker-feedback').hidden = true;
   $('search-intent').hidden = true;
@@ -129,6 +160,8 @@ $('picker').addEventListener('close', () => {
   searchRevision++;
   searchController?.abort();
   uploadRevision++;
+  coverRevision++;
+  coverPending = false;
 });
 $('search-tab').addEventListener('click', () => { selectTab('search'); $('query').focus(); });
 $('manual-tab').addEventListener('click', () => { selectTab('manual'); $('manual-title').focus(); });
@@ -139,7 +172,7 @@ document.querySelectorAll('[role="tab"]').forEach(tab => tab.addEventListener('k
   selectTab(next.id === 'search-tab' ? 'search' : 'manual');
   next.focus();
 }));
-$('change').addEventListener('click', () => { draft = null; coverPromise = Promise.resolve(); showDraft(); $('query').focus(); });
+$('change').addEventListener('click', () => { draft = null; coverRevision++; coverPending = false; coverPromise = Promise.resolve(); $('replace-cover').value = ''; showDraft(); $('query').focus(); });
 $('save').addEventListener('click', async () => {
   if (!draft) return;
   const chosen = draft;
@@ -147,7 +180,9 @@ $('save').addEventListener('click', async () => {
   $('save').disabled = true;
   $('save').textContent = '正在保存…';
   try {
-    await coverPromise;
+    // If an upload replaces a pending online import, wait for the latest image operation.
+    let pending;
+    do { pending = coverPromise; await pending; } while (pending !== coverPromise);
     if (!$('picker').open || draft !== chosen || key !== activeKey) return;
     state.picks[key] = { ...chosen, note: $('recommendation').value.trim() };
     persist(); renderSlots(); schedulePoster(); $('picker').close();
@@ -198,9 +233,11 @@ async function runSearch() {
     $('search-status').textContent = `${message}${warnings.length ? ` ${warnings.join('；')}。` : ''}`;
     $('results').replaceChildren(...items.map(item => {
       const button = element('button', 'result');
-      if (/^https:\/\//.test(item.coverUrl)) {
-        const img = element('img'); img.src = item.coverUrl; img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
+      const source = normalizeCoverUrl(item.coverUrl);
+      if (source) {
+        const img = element('img'); img.alt = ''; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
         img.addEventListener('error', () => img.replaceWith(element('span', 'result-placeholder', '漫')), { once: true });
+        img.src = source;
         button.append(img);
       } else button.append(element('span', 'result-placeholder', '漫'));
       const copy = element('span', 'result-copy');
@@ -230,23 +267,52 @@ $('query').addEventListener('compositionstart', () => { composing = true; clearT
 $('query').addEventListener('compositionend', () => { composing = false; queueSearch(); });
 $('query').addEventListener('input', () => { if (!composing) queueSearch(); });
 async function chooseResult(item, revision) {
-  // Switch immediately, then load a safe local copy of the cover for PNG export.
-  draft = { title: item.title.slice(0, 70), author: item.author.slice(0, 50), note: '', cover: '' };
+  // Display the original URL immediately; a failed export import must not erase it.
+  draft = { title: item.title.slice(0, 70), author: item.author.slice(0, 50), note: '', cover: '', coverUrl: normalizeCoverUrl(item.coverUrl) };
   const chosenDraft = draft;
+  const operation = ++coverRevision;
+  coverPending = !!chosenDraft.coverUrl;
   showDraft();
-  if (!/^https:\/\//.test(item.coverUrl)) return;
+  if (!chosenDraft.coverUrl) return;
   try {
-    const response = await fetch(item.coverUrl, { signal: AbortSignal.timeout(10000), referrerPolicy: 'no-referrer' });
-    if (!response.ok) throw new Error('cover');
-    const blob = await response.blob();
-    if (blob.size > 8 * 1024 * 1024 || !blob.type.startsWith('image/')) throw new Error('cover');
-    const cover = await resizeImage(blob);
-    if (revision !== searchRevision) return;
+    const cover = await importCover(chosenDraft.coverUrl, resizeImage);
+    if (revision !== searchRevision || operation !== coverRevision || draft !== chosenDraft) return;
     chosenDraft.cover = cover;
   } catch {
-    if (revision === searchRevision && draft === chosenDraft && $('picker').open) toast('封面暂时无法读取，将使用文字封面。也可通过“手动添加”上传封面。');
+    // The remote image remains available to ordinary image elements even when import fails.
+  } finally {
+    if (operation === coverRevision && draft === chosenDraft && $('picker').open) {
+      coverPending = false;
+      showDraftCover();
+    }
   }
 }
+
+$('replace-cover').addEventListener('change', () => {
+  const file = $('replace-cover').files[0];
+  if (!file || !draft) return;
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) {
+    toast('请选择 8 MB 以内的 JPG、PNG 或 WebP 图片。'); $('replace-cover').value = ''; return;
+  }
+  const chosen = draft;
+  const operation = ++coverRevision;
+  coverPending = true;
+  showDraftCover();
+  coverPromise = (async () => {
+    try {
+      const cover = await resizeImage(file);
+      if (operation !== coverRevision || draft !== chosen) return;
+      chosen.cover = cover;
+    } catch (error) {
+      if (operation === coverRevision && draft === chosen) toast(error.message);
+    } finally {
+      if (operation === coverRevision && draft === chosen && $('picker').open) {
+        coverPending = false;
+        showDraftCover();
+      }
+    }
+  })();
+});
 
 function resizeImage(blob) {
   return new Promise((resolve, reject) => {
@@ -398,7 +464,8 @@ $('download').addEventListener('click', async () => {
     const link = element('a'); link.href = url; link.download = '我的漫画私藏.png';
     document.body.append(link); link.click(); link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 60000);
-    toast('推荐卡已生成，正在下载。手机上也可以长按下载的图片保存。');
+    const missing = Object.values(state.picks).some(item => item?.coverUrl && !item.cover);
+    toast(missing ? '推荐卡已下载；未准备好的在线封面使用文字封面，可上传图片后重新下载。' : '推荐卡已生成，正在下载。手机上也可以长按下载的图片保存。');
   } catch { toast('图片生成失败，请重试。'); }
   finally { button.disabled = !Object.values(state.picks).some(Boolean); }
 });

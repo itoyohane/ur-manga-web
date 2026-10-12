@@ -50,7 +50,11 @@ python -m http.server 8000 --directory dist
 
 ## 数据与隐私
 
-搜索关键词发送给 Bangumi / AniList。上传封面在浏览器中缩放，支持 JPG、PNG、WebP，最大 8 MB；封面和选择仅保存于当前浏览器，不上传服务器。外部封面读取受跨域限制，失败时使用占位封面，可手动上传替换。清除网站数据会删除本地收藏卡。
+搜索关键词发送给 Bangumi / AniList。上传封面在浏览器中缩放，支持 JPG、PNG、WebP，最大 8 MB；封面和选择仅保存于当前浏览器，不上传服务器。在线封面由浏览器从图片源加载。清除网站数据会删除本地收藏卡。
+
+搜索选中的封面保留原始地址，供编辑区与选择卡片显示；能成功读取的图片会另存为本地副本，用于 Canvas 预览与 PNG 导出。图片源未开放跨域读取时，页面仍尝试显示在线封面，并提示导出将使用文字封面。可在已选漫画的编辑区直接上传或替换封面，无需重新输入作品信息。原始图片也无法加载时显示失败提示。
+
+旧版本已保存的条目如果没有封面地址，需要重新搜索选择一次，或直接上传封面。
 
 ## Sites 部署
 
@@ -70,6 +74,7 @@ node --test tests/*.test.mjs
 node --check dist/app.mjs
 node --check dist/model.mjs
 node --check dist/search.mjs
+node --check dist/cover.mjs
 ```
 
 推荐 Node.js 22。JavaScript 使用两个空格缩进。测试不能替代移动浏览器实测；正式发布前应检查搜索、上传、恢复、PNG 下载及 iOS / Android 键盘布局。需要凭证的新服务应通过后端代理访问，不应把密钥写入前端。
