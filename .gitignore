@@ -4,5 +4,3 @@
 !.env.example
 node_modules/
 coverage/
-.openai/*
-!.openai/hosting.json
