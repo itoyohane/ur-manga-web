@@ -1,6 +1,7 @@
 import { CATEGORIES, emptyState, normalizeState } from './model.mjs';
 import { createBangumiSearch } from './search.mjs';
 import { normalizeCoverUrl, coverSource, importCover } from './cover.mjs';
+import { drawRecommendation, POSTER_PALETTE as palette, POSTER_SIZE } from './poster.mjs';
 
 const $ = id => document.getElementById(id);
 const storageKey = 'mangalist:picks:v1';
@@ -21,12 +22,13 @@ let composing = false;
 const bangumiSearch = createBangumiSearch();
 let toastTimer;
 let renderRevision = 0;
-let renderPromise = Promise.resolve();
 const imageCache = new Map();
+const coverRecoveries = new Map();
+let downloading = false;
 const canvas = $('poster');
 const ctx = canvas.getContext('2d');
-const font = '"M Saans Variable", "M Saans 600", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
-const palette = { paper: '#ffffff', ink: '#000000', muted: '#717171', surface: '#f3f4f6', line: '#e5e7eb', dark: '#141414', pink: '#ae3e6a', pinkLine: '#edbfd1' };
+canvas.width = POSTER_SIZE.width;
+canvas.height = POSTER_SIZE.height;
 
 function toast(message) {
   if ($('picker').open) {
@@ -77,7 +79,7 @@ function renderSlots() {
   }));
   const count = Object.values(state.picks).filter(Boolean).length;
   $('progress').textContent = `${count} / 4 已选`;
-  $('download').disabled = count === 0;
+  $('download').disabled = downloading || count === 0;
   const missing = CATEGORIES.filter(category => state.picks[category.key]?.coverUrl && !state.picks[category.key]?.cover);
   $('cover-warning').hidden = !missing.length;
   $('cover-warning').textContent = missing.length ? `${missing.map(category => category.label).join('、')}的封面暂不能加入下载图片。点击对应漫画上传封面，或使用文字封面下载。` : '';
@@ -99,6 +101,7 @@ function showDraftCover() {
     image.src = source; wrap.append(image);
   } else wrap.append(element('span', 'cover-fallback', '暂无封面'));
   $('cover-status').textContent = coverPending ? '正在准备封面，完成后即可随推荐卡下载…' : chosen.cover ? '封面已就绪，可随推荐卡下载。' : chosen.coverUrl ? '在线封面可供显示；下载图片将使用文字封面。上传封面后即可一同下载。' : '这部作品暂无封面，可以上传图片。';
+  schedulePoster();
 }
 
 function selectTab(mode) {
@@ -125,6 +128,7 @@ function showDraft() {
     $('remove').hidden = !state.picks[activeKey];
     $('recommendation').focus();
   } else selectTab('search');
+  if (!draft) schedulePoster();
 }
 
 function openPicker(category) {
@@ -148,6 +152,7 @@ function openPicker(category) {
   $('upload-preview').hidden = true;
   showDraft();
   $('picker').showModal();
+  schedulePoster();
   document.body.style.overflow = 'hidden';
   (draft ? $('recommendation') : $('query')).focus();
 }
@@ -161,6 +166,7 @@ $('picker').addEventListener('close', () => {
   uploadRevision++;
   coverRevision++;
   coverPending = false;
+  schedulePoster();
 });
 $('search-tab').addEventListener('click', () => { selectTab('search'); $('query').focus(); });
 $('manual-tab').addEventListener('click', () => { selectTab('manual'); $('manual-title').focus(); });
@@ -172,6 +178,11 @@ document.querySelectorAll('[role="tab"]').forEach(tab => tab.addEventListener('k
   next.focus();
 }));
 $('change').addEventListener('click', () => { draft = null; coverRevision++; coverPending = false; coverPromise = Promise.resolve(); $('replace-cover').value = ''; showDraft(); $('query').focus(); });
+$('recommendation').addEventListener('input', () => {
+  if (!draft) return;
+  draft.note = $('recommendation').value.trim();
+  schedulePoster();
+});
 $('save').addEventListener('click', async () => {
   if (!draft) return;
   const chosen = draft;
@@ -349,110 +360,75 @@ $('manual-form').addEventListener('submit', event => {
 
 function loadImage(source) {
   if (!source) return Promise.resolve(null);
-  if (!imageCache.has(source)) imageCache.set(source, new Promise(resolve => {
-    const image = new Image(); image.onload = () => resolve(image); image.onerror = () => resolve(null); image.src = source;
-  }));
+  if (!imageCache.has(source)) {
+    const pending = new Promise(resolve => {
+      const image = new Image();
+      const timeout = setTimeout(() => finish(null), 10000);
+      function finish(value) {
+        clearTimeout(timeout);
+        image.onload = null; image.onerror = null;
+        resolve(value);
+      }
+      image.onload = () => finish(image); image.onerror = () => finish(null);
+      image.referrerPolicy = 'no-referrer';
+      image.src = source;
+    });
+    imageCache.set(source, pending);
+    pending.then(image => { if (!image && imageCache.get(source) === pending) imageCache.delete(source); });
+  }
   return imageCache.get(source);
 }
 
-function text(value, x, y, size, color = palette.ink, weight = 400) {
-  ctx.font = `${weight} ${size}px ${font}`; ctx.fillStyle = color; ctx.fillText(value, x, y);
-}
-
-function wrap(value, maxWidth, maxLines) {
-  const lines = []; let current = '';
-  for (const char of Array.from(value.replace(/\s+/g, ' '))) {
-    if (ctx.measureText(current + char).width > maxWidth && current) { lines.push(current); current = char; } else current += char;
-  }
-  if (current) lines.push(current);
-  if (lines.length > maxLines) {
-    lines.length = maxLines;
-    let last = lines[maxLines - 1];
-    while (last && ctx.measureText(last + '…').width > maxWidth) last = last.slice(0, -1);
-    lines[maxLines - 1] = last + '…';
-  }
-  return lines;
-}
-
-function fitText(value, x, y, size, width, color, weight = 400) {
-  ctx.font = `${weight} ${size}px ${font}`;
-  const [line = ''] = wrap(value, width, 1);
-  text(line, x, y, size, color, weight);
-}
-
-function drawCover(image, x, y, w, h) {
-  ctx.fillStyle = palette.surface; ctx.fillRect(x, y, w, h);
-  if (image) {
-    // Fit the full cover, with a muted matte instead of cropping the title.
-    const scale = Math.min(w / image.width, h / image.height);
-    const iw = image.width * scale, ih = image.height * scale;
-    ctx.drawImage(image, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih);
-  } else {
-    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
-    ctx.strokeStyle = '#71717166'; ctx.lineWidth = 3;
-    ctx.strokeRect(x + w / 2 - 43, y + h / 2 - 60, 86, 113);
-    ctx.beginPath(); ctx.moveTo(x + w / 2 - 30, y + h / 2 - 60); ctx.lineTo(x + w / 2 - 30, y + h / 2 + 53); ctx.stroke();
-    ctx.restore();
-  }
-}
-
 async function drawPoster(revision, snapshot) {
-  const images = await Promise.all(CATEGORIES.map(category => loadImage(snapshot.picks[category.key]?.cover)));
+  // Display-only Canvas may show remote images even when their pixels cannot be exported.
+  const images = await Promise.all(CATEGORIES.map(category => loadImage(coverSource(snapshot.picks[category.key]))));
   if (revision !== renderRevision) return;
-  ctx.fillStyle = palette.paper; ctx.fillRect(0, 0, 1200, 1500);
-  ctx.textAlign = 'left';
-  text('我的漫画偏爱', 64, 73, 40, palette.ink, 650);
-  ctx.textAlign = 'right';
-  fitText(snapshot.nickname.trim() || '一位漫画爱好者', 1136, 70, 22, 600, palette.muted);
-  ctx.textAlign = 'left';
-  fitText(snapshot.tagline.trim() || '人生很长，幸好还有漫画。', 64, 119, 22, 1072, palette.muted);
-  // Four horizontal rows follow the supplied sketch, with alternating portrait covers.
-  const frame = { x: 64, y: 164, width: 1072, rowHeight: 312 };
-  CATEGORIES.forEach((category, index) => {
-    const y = frame.y + index * frame.rowHeight;
-    const rightCover = index % 2 === 1;
-    const coverX = rightCover ? 936 : 96;
-    const copyX = rightCover ? 888 : 312;
-    const copyWidth = 792;
-    const item = snapshot.picks[category.key];
-    drawCover(images[index], coverX, y + 30, 168, 252);
-    ctx.textAlign = rightCover ? 'right' : 'left';
-    text(`0${index + 1}  /  ${category.label}`, copyX, y + 49, 20, palette.pink, 600);
-    ctx.font = `600 34px ${font}`;
-    const titles = wrap(item?.title || '留给下一本心头好', copyWidth, 2);
-    titles.forEach((line, lineIndex) => text(line, copyX, y + 106 + lineIndex * 42, 34, item ? palette.ink : palette.muted, 600));
-    if (item?.author) fitText(item.author, copyX, y + 188, 20, copyWidth, palette.muted);
-    ctx.font = `22px ${font}`;
-    const notes = wrap(item ? item.note || '这份喜欢，想与你分享。' : category.hint, copyWidth, 2);
-    notes.forEach((line, lineIndex) => text(line, copyX, y + 246 + lineIndex * 30, 22, palette.muted));
-    if (index > 0) {
-      ctx.strokeStyle = palette.pinkLine; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(frame.x, y); ctx.lineTo(frame.x + frame.width, y); ctx.stroke();
-    }
-  });
-  ctx.strokeStyle = palette.dark; ctx.lineWidth = 2;
-  ctx.strokeRect(frame.x, frame.y, frame.width, frame.rowHeight * CATEGORIES.length);
-  ctx.textAlign = 'left';
-  text('漫画私藏 · MangaList', 64, 1462, 19, palette.pink, 500);
-  ctx.textAlign = 'right';
-  text('每一份喜欢，都有自己的理由。', 1136, 1462, 19, palette.muted);
-  ctx.textAlign = 'left';
+  drawRecommendation(ctx, snapshot, images);
   canvas.setAttribute('aria-label', `${snapshot.nickname || '一位漫画爱好者'}的漫画推荐卡。${CATEGORIES.map(c => `${c.label}：${snapshot.picks[c.key]?.title || '未选择'}`).join('。')}`);
 }
 
 function schedulePoster() {
   const revision = ++renderRevision;
   const snapshot = structuredClone(state);
-  renderPromise = drawPoster(revision, snapshot);
+  if ($('picker').open && draft) snapshot.picks[activeKey] = { ...draft };
+  drawPoster(revision, snapshot);
+}
+
+async function recoverSavedCovers() {
+  await Promise.all(CATEGORIES.map(async ({ key }) => {
+    const item = state.picks[key];
+    if (!item?.coverUrl || item.cover) return;
+    if (!coverRecoveries.has(item)) {
+      coverRecoveries.set(item, (async () => {
+        try {
+          const cover = await importCover(item.coverUrl, resizeImage);
+          // An edit or reset while fetching must keep its newer choice.
+          if (state.picks[key] !== item || item.cover) return;
+          item.cover = cover;
+          persist(); renderSlots(); schedulePoster();
+        } catch { /* Keep the original URL and the visible fallback notice. */ }
+        finally { coverRecoveries.delete(item); }
+      })());
+    }
+    await coverRecoveries.get(item);
+  }));
 }
 
 $('download').addEventListener('click', async () => {
+  if (downloading) return;
+  downloading = true;
   const button = $('download'); button.disabled = true;
   try {
+    await recoverSavedCovers();
     if (document.fonts?.ready) await document.fonts.ready;
     schedulePoster();
-    await renderPromise;
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    // Use a fresh Canvas containing only readable local images; never export the display Canvas.
+    const output = document.createElement('canvas');
+    output.width = POSTER_SIZE.width; output.height = POSTER_SIZE.height;
+    const snapshot = structuredClone(state);
+    const images = await Promise.all(CATEGORIES.map(category => loadImage(snapshot.picks[category.key]?.cover)));
+    drawRecommendation(output.getContext('2d'), snapshot, images);
+    const blob = await new Promise(resolve => output.toBlob(resolve, 'image/png'));
     if (!blob) throw new Error('图片生成失败，请重试。');
     const url = URL.createObjectURL(blob);
     const link = element('a'); link.href = url; link.download = '我的漫画私藏.png';
@@ -461,9 +437,10 @@ $('download').addEventListener('click', async () => {
     const missing = Object.values(state.picks).some(item => item?.coverUrl && !item.cover);
     toast(missing ? '推荐卡已下载；未准备好的在线封面使用文字封面，可上传图片后重新下载。' : '推荐卡已生成，正在下载。手机上也可以长按下载的图片保存。');
   } catch { toast('图片生成失败，请重试。'); }
-  finally { button.disabled = !Object.values(state.picks).some(Boolean); }
+  finally { downloading = false; button.disabled = !Object.values(state.picks).some(Boolean); }
 });
 
 $('preview-panel').open = window.matchMedia('(min-width: 900px)').matches;
 renderSlots(); schedulePoster();
+recoverSavedCovers();
 if (document.fonts?.ready) document.fonts.ready.then(schedulePoster);

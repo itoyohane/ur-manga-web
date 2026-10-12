@@ -13,13 +13,24 @@ export function coverSource(item) {
   return normalizeCoverUrl(item?.coverUrl);
 }
 
-// Import a readable image for Canvas export. Keep the remote URL separately for display.
+// Bangumi covers use the same-origin function so Canvas never reads a cross-origin image.
 export async function importCover(source, resizeImage, { fetchImpl = globalThis.fetch, signal = AbortSignal.timeout(10000) } = {}) {
   const url = normalizeCoverUrl(source);
   if (!url) throw new Error('封面地址不可用。');
-  const response = await fetchImpl(url, { signal, referrerPolicy: 'no-referrer', credentials: 'omit' });
-  if (!response.ok) throw new Error('封面暂时无法读取。');
-  const blob = await response.blob();
-  if (blob.size > 8 * 1024 * 1024 || !blob.type.startsWith('image/')) throw new Error('封面格式或大小不受支持。');
-  return resizeImage(blob);
+  const sources = new URL(url).hostname === 'lain.bgm.tv' ? [`/api/cover?url=${encodeURIComponent(url)}`, url] : [url];
+  let lastError;
+  for (const address of sources) {
+    signal.throwIfAborted();
+    try {
+      const response = await fetchImpl(address, { signal, referrerPolicy: 'no-referrer', credentials: 'omit' });
+      if (!response.ok) throw new Error('封面暂时无法读取。');
+      const blob = await response.blob();
+      if (blob.size > 8 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp'].includes(blob.type)) throw new Error('封面格式或大小不受支持。');
+      return await resizeImage(blob);
+    } catch (error) {
+      signal.throwIfAborted();
+      lastError = error;
+    }
+  }
+  throw lastError;
 }

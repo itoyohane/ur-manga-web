@@ -3,5 +3,8 @@
   "framework": null,
   "buildCommand": "",
   "installCommand": "",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "functions": {
+    "api/cover.mjs": { "maxDuration": 15 }
+  }
 }

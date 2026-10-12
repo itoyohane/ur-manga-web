@@ -153,9 +153,11 @@ components:
 
 ## MangaList adaptations
 
+The page applies the installed taste v1 guidance while retaining native HTML, CSS, and JavaScript. Use charcoal `#29242a` instead of pure black and a single rose accent. Page-specific shape tokens are 20px for selection and result cards, 12px for media, 14px for fields and inline notices, and 28px for preview panels and dialogs; pill buttons retain their full radius. On desktop, place the heading and editor to the left of the preview. On mobile, retain two selection columns, a collapsible preview, and the fixed download action. Use small press transitions, visible keyboard focus, and decorative search skeletons; disable animation under reduced-motion preferences. These application-specific rules override the original foundation examples below.
+
 The repository adapts this base system with restrained rose accents: `#ae3e6a` for emphasis, `#933059` for hover, `#fff1f6` for tinted surfaces, and `#edbfd1` for selected borders and dividers. Keep the white canvas and dark body text. Apply pink to the hero emphasis, category numbers, progress chip, selected states, and primary download action.
 
-The exported recommendation card follows the supplied sketch: four stacked horizontal rows inside one frame, ordered long, medium, short, and doujin. Portrait covers alternate left, right, left, and right; the adjacent text mirrors its alignment. Keep the signature header compact, preserve full covers, and wrap or truncate text within each row. The editor retains its mobile two-column selection grid.
+The exported recommendation card follows the new illustrated reference at 1200 × 1600: four stacked horizontal rows, ordered long, medium, short, and doujin, inside a pale pink rounded frame. Full covers tilt slightly and alternate left, right, left, and right. Large pink circular category seals sit opposite the books; the middle text mirrors its alignment with large Chinese serif titles, pale pink author pills, and recommendation notes. Keep the signature and introduction in the footer, preserve full covers, and wrap or truncate text within each row. Poster colors live in `dist/poster.mjs`; its lighter pink palette is separate from the editor’s darker accessible rose accents. The editor retains its mobile two-column selection grid.
 
 ## Overview
 

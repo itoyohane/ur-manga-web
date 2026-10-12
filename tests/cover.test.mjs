@@ -35,12 +35,30 @@ test('imports readable covers for PNG export without sending credentials', async
     assert.equal(blob, image);
     return 'data:image/jpeg;base64,abcd';
   }, { fetchImpl: async (url, options) => {
-    assert.equal(url, 'https://lain.bgm.tv/cover.jpg');
+    assert.equal(url, `/api/cover?url=${encodeURIComponent('https://lain.bgm.tv/cover.jpg')}`);
     assert.equal(options.credentials, 'omit');
     assert.equal(options.referrerPolicy, 'no-referrer');
     return { ok: true, blob: async () => image };
   } });
   assert.equal(result, 'data:image/jpeg;base64,abcd');
+});
+
+test('falls back to a readable source on static hosting and does not retry after cancellation', async () => {
+  const source = 'https://lain.bgm.tv/pic/cover/l/test.jpg';
+  const calls = [];
+  await importCover(source, async () => 'ready', { fetchImpl: async address => {
+    calls.push(address);
+    return address.startsWith('/api/') ? { ok: false } : { ok: true, blob: async () => new Blob(['bytes'], { type: 'image/png' }) };
+  } });
+  assert.deepEqual(calls, [`/api/cover?url=${encodeURIComponent(source)}`, source]);
+  const controller = new AbortController();
+  let count = 0;
+  await assert.rejects(importCover(source, () => assert.fail(), { signal: controller.signal, fetchImpl: async () => {
+    count++;
+    controller.abort();
+    throw new Error('cancelled');
+  } }), { name: 'AbortError' });
+  assert.equal(count, 1);
 });
 
 test('rejects failed, non-image and oversized responses before decoding', async () => {

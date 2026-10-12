@@ -12,10 +12,12 @@
   <header class="topbar"><a class="brand" href="./">漫画私藏<span class="brand-caption" lang="en">MangaList</span></a><span id="progress" role="status">0 / 4 已选</span></header>
   <main>
     <section class="hero" aria-labelledby="page-title">
+      <p class="eyebrow">四种篇幅，一份偏爱</p>
       <h1 id="page-title">选出你的<span>漫画偏爱</span></h1>
       <p class="intro">长篇、中篇、短篇、同人，各选一本，<br class="mobile-break">把喜欢收进一张推荐卡。</p>
     </section>
     <section class="editor" aria-label="选择四类漫画">
+      <div class="section-heading"><h2>挑选你的私藏</h2><span>每类最多一本</span></div>
       <div id="slots" class="slots"></div>
       <p class="helper">篇幅由你定义，也可以留空。</p>
       <p id="cover-warning" class="helper" role="status" hidden></p>
@@ -25,9 +27,10 @@
       </details>
       <div class="actions"><button id="reset" class="text-button">清空</button><button id="download" class="primary" disabled>下载推荐卡 <span>PNG ↓</span></button></div>
     </section>
-    <details id="preview-panel" class="preview"><summary>查看推荐卡 <span>实时预览</span></summary>
-      <div class="preview-top"><span>个人推荐卡</span><span>1200 × 1500 px</span></div>
-      <div class="canvas-wrap"><canvas id="poster" width="1200" height="1500" role="img" aria-label="个人漫画推荐卡预览"></canvas></div>
+    <details id="preview-panel" class="preview"><summary>推荐卡预览 <span>实时更新</span></summary>
+      <div class="preview-top"><span>按你的选择生成</span><span>1200 × 1600 px</span></div>
+      <div class="canvas-wrap"><canvas id="poster" width="1200" height="1600" role="img" aria-label="个人漫画推荐卡预览"></canvas></div>
+      <p class="preview-note">选好喜欢的漫画，就可以下载分享。</p>
     </details>
   </main>
   <footer>选择与封面仅保存在当前浏览器。</footer>

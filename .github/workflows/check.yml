@@ -22,5 +22,8 @@ jobs:
           node --check dist/model.mjs
           node --check dist/search.mjs
           node --check dist/cover.mjs
+          node --check api/cover.mjs
+          node --check dev.mjs
+          node --check dist/poster.mjs
       - name: Test search, covers and saved state
         run: node --test tests/*.test.mjs
