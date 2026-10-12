@@ -22,7 +22,8 @@ let renderPromise = Promise.resolve();
 const imageCache = new Map();
 const canvas = $('poster');
 const ctx = canvas.getContext('2d');
-const font = '"PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif';
+const font = '"M Saans Variable", "M Saans 600", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
+const palette = { paper: '#ffffff', ink: '#000000', muted: '#717171', surface: '#f3f4f6', line: '#e5e7eb', dark: '#141414' };
 
 function toast(message) {
   if ($('picker').open) {
@@ -53,17 +54,18 @@ function renderSlots() {
     const item = state.picks[category.key];
     const button = element('button', `slot${item ? ' filled' : ''}`);
     button.setAttribute('aria-label', `${category.label}：${item?.title || '尚未选择'}，点击编辑`);
-    button.append(element('span', 'slot-number', `0${index + 1}`));
+    const top = element('span', 'slot-top');
+    top.append(element('span', 'slot-number', `0${index + 1}`), element('span', 'slot-label', category.label));
     const copy = element('span', 'slot-copy');
-    copy.append(element('span', 'slot-label', category.label));
     const media = element('span', 'slot-media');
-    media.style.backgroundColor = category.color;
     if (item?.cover) {
       const image = element('img'); image.src = item.cover; image.alt = ''; media.append(image);
     } else media.textContent = item ? '漫' : '+';
     media.setAttribute('aria-hidden', 'true');
     copy.append(media, element('span', 'slot-title', item?.title || '选择漫画'));
-    button.append(copy, element('span', 'slot-plus', item ? '↗' : '+'));
+    const action = element('span', 'slot-plus', item ? '↗' : '+');
+    action.setAttribute('aria-hidden', 'true');
+    button.append(top, copy, action);
     button.addEventListener('click', () => openPicker(category));
     return button;
   }));
@@ -256,7 +258,7 @@ function resizeImage(blob) {
         const buffer = document.createElement('canvas');
         buffer.width = Math.max(1, Math.round(img.width * scale)); buffer.height = Math.max(1, Math.round(img.height * scale));
         const pen = buffer.getContext('2d');
-        pen.fillStyle = '#fcfaf1'; pen.fillRect(0, 0, buffer.width, buffer.height);
+        pen.fillStyle = palette.paper; pen.fillRect(0, 0, buffer.width, buffer.height);
         pen.drawImage(img, 0, 0, buffer.width, buffer.height);
         resolve(buffer.toDataURL('image/jpeg', .85));
       } catch (error) { reject(error); } finally { URL.revokeObjectURL(url); }
@@ -301,7 +303,7 @@ function loadImage(source) {
   return imageCache.get(source);
 }
 
-function text(value, x, y, size, color = '#2f3e30', weight = 400) {
+function text(value, x, y, size, color = palette.ink, weight = 400) {
   ctx.font = `${weight} ${size}px ${font}`; ctx.fillStyle = color; ctx.fillText(value, x, y);
 }
 
@@ -326,8 +328,8 @@ function fitText(value, x, y, size, width, color, weight = 400) {
   text(line, x, y, size, color, weight);
 }
 
-function drawCover(image, category, x, y, w, h) {
-  ctx.fillStyle = category.color; ctx.fillRect(x, y, w, h);
+function drawCover(image, x, y, w, h) {
+  ctx.fillStyle = palette.surface; ctx.fillRect(x, y, w, h);
   if (image) {
     // Fit the full cover, with a muted matte instead of cropping the title.
     const scale = Math.min(w / image.width, h / image.height);
@@ -335,9 +337,7 @@ function drawCover(image, category, x, y, w, h) {
     ctx.drawImage(image, x + (w - iw) / 2, y + (h - ih) / 2, iw, ih);
   } else {
     ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
-    ctx.strokeStyle = '#ffffff55'; ctx.lineWidth = 1.5;
-    for (let i = -h; i < w + h; i += 32) { ctx.beginPath(); ctx.moveTo(x + i, y); ctx.lineTo(x + i + h, y + h); ctx.stroke(); }
-    ctx.strokeStyle = '#3d554533'; ctx.lineWidth = 3;
+    ctx.strokeStyle = '#71717166'; ctx.lineWidth = 3;
     ctx.strokeRect(x + w / 2 - 43, y + h / 2 - 60, 86, 113);
     ctx.beginPath(); ctx.moveTo(x + w / 2 - 30, y + h / 2 - 60); ctx.lineTo(x + w / 2 - 30, y + h / 2 + 53); ctx.stroke();
     ctx.restore();
@@ -347,35 +347,36 @@ function drawCover(image, category, x, y, w, h) {
 async function drawPoster(revision, snapshot) {
   const images = await Promise.all(CATEGORIES.map(category => loadImage(snapshot.picks[category.key]?.cover)));
   if (revision !== renderRevision) return;
-  ctx.fillStyle = '#fcfaf1'; ctx.fillRect(0, 0, 1200, 1500);
-  text('漫画私藏', 78, 95, 28, '#3b5140', 700);
-  text('M A N G A L I S T', 865, 92, 17, '#7c8472');
-  ctx.strokeStyle = '#cbd3bf'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(78, 122); ctx.lineTo(1122, 122); ctx.stroke();
-  text('我的漫画偏爱', 78, 224, 68, '#2b3e30', 700);
-  fitText(`${snapshot.nickname.trim() || '一位漫画爱好者'} 的四格私藏`, 80, 282, 25, 1040, '#7a826d');
-  fitText(snapshot.tagline.trim() || '人生很长，幸好还有漫画。', 80, 334, 23, 1040, '#6d775f');
+  ctx.fillStyle = palette.paper; ctx.fillRect(0, 0, 1200, 1500);
+  text('漫画私藏', 78, 95, 28, palette.ink, 600);
+  text('MangaList', 992, 92, 22, palette.muted);
+  ctx.strokeStyle = palette.line; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(78, 122); ctx.lineTo(1122, 122); ctx.stroke();
+  text('我的漫画偏爱', 78, 224, 80, palette.ink, 650);
+  fitText(`${snapshot.nickname.trim() || '一位漫画爱好者'} 的四格私藏`, 80, 282, 25, 1040, palette.muted);
+  fitText(snapshot.tagline.trim() || '人生很长，幸好还有漫画。', 80, 334, 23, 1040, palette.muted);
   CATEGORIES.forEach((category, index) => {
     const x = 78 + (index % 2) * 542;
     const y = 388 + Math.floor(index / 2) * 475;
     const item = snapshot.picks[category.key];
-    ctx.fillStyle = '#eff0e5'; ctx.fillRect(x, y, 502, 438);
-    ctx.fillStyle = '#3d5545'; ctx.fillRect(x, y, 502, 49);
-    text(`0${index + 1}  /  ${category.label}`, x + 19, y + 33, 22, '#f6f7ec', 600);
-    drawCover(images[index], category, x + 18, y + 67, 466, 222);
+    ctx.fillStyle = palette.paper; ctx.fillRect(x, y, 502, 438);
+    ctx.strokeStyle = palette.line; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, 500, 436);
+    text(`0${index + 1}`, x + 19, y + 35, 19, palette.muted);
+    text(category.label, x + 68, y + 35, 24, palette.ink, 600);
+    drawCover(images[index], x + 18, y + 57, 466, 232);
     if (!item) {
-      text('留给下一本心头好', x + 20, y + 332, 25, '#8a937d', 500);
-      text(category.hint, x + 20, y + 382, 19, '#959d87');
+      text('留给下一本心头好', x + 20, y + 332, 25, palette.muted, 500);
+      text(category.hint, x + 20, y + 382, 19, palette.muted);
     } else {
-      fitText(item.title, x + 20, y + 329, 27, 462, '#2d4132', 700);
-      if (item.author) fitText(item.author, x + 20, y + 358, 17, 462, '#7b846e');
+      fitText(item.title, x + 20, y + 329, 27, 462, palette.ink, 600);
+      if (item.author) fitText(item.author, x + 20, y + 358, 17, 462, palette.muted);
       ctx.font = `19px ${font}`;
       const lines = wrap(item.note || '这份喜欢，想与你分享。', 462, 2);
-      lines.forEach((line, lineIndex) => text(line, x + 20, y + 391 + lineIndex * 27, 19, '#68755d'));
+      lines.forEach((line, lineIndex) => text(line, x + 20, y + 391 + lineIndex * 27, 19, palette.muted));
     }
   });
-  ctx.strokeStyle = '#cbd3bf'; ctx.beginPath(); ctx.moveTo(78, 1382); ctx.lineTo(1122, 1382); ctx.stroke();
-  text('每一份喜欢，都有自己的理由。', 78, 1432, 20, '#7c8472');
-  text('MY MANGA, MY PICKS.', 845, 1430, 16, '#7c8472');
+  ctx.strokeStyle = palette.line; ctx.beginPath(); ctx.moveTo(78, 1382); ctx.lineTo(1122, 1382); ctx.stroke();
+  text('每一份喜欢，都有自己的理由。', 78, 1432, 20, palette.muted);
+  text('My manga, my picks.', 923, 1430, 18, palette.muted);
   canvas.setAttribute('aria-label', `${snapshot.nickname || '一位漫画爱好者'}的漫画推荐卡。${CATEGORIES.map(c => `${c.label}：${snapshot.picks[c.key]?.title || '未选择'}`).join('。')}`);
 }
 

@@ -25,6 +25,12 @@ python -m http.server 8000 --directory dist
 
 手机上使用双列选择卡片、底部下载按钮和底部选择面板。输入框使用 16px 字号，避免 iOS 聚焦放大；适配安全区，预览与署名默认折叠。
 
+## 界面样式
+
+页面与导出的推荐卡遵循 [DESIGN.md](./DESIGN.md) 中的 Mobbin Minimal 设计：黑白配色、大字号标题、轻边框卡片、胶囊按钮与浅灰输入框。样式变量集中在 `dist/style.css` 的 `:root`，Canvas 推荐卡配色在 `dist/app.mjs` 的 `palette`。
+
+仓库未包含 M Saans 字体文件，优先使用本机已安装的同名字体，否则回退到系统无衬线字体；无需远程字体请求。桌面端采用左右编辑与预览布局，手机端保留双列卡片、折叠预览及底部下载栏。
+
 ## 模糊与组合搜索
 
 统一搜索 Bangumi 与 AniList，无需选择数据源或配置 API 密钥。

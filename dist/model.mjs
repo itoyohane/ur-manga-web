@@ -1,8 +1,8 @@
 export const CATEGORIES = [
-  { key: 'long', label: '长篇漫画', english: 'THE LONG JOURNEY', hint: '陪你走过漫长岁月的故事', color: '#d8e3b4' },
-  { key: 'medium', label: '中篇漫画', english: 'JUST THE RIGHT LENGTH', hint: '在恰好的篇幅里，念念不忘', color: '#e6d5b9' },
-  { key: 'short', label: '短篇漫画', english: 'A BRIEF ENCOUNTER', hint: '短短一瞬，也能留下长久回响', color: '#cbd9d9' },
-  { key: 'doujin', label: '同人漫画', english: 'MADE WITH LOVE', hint: '因为热爱，而继续的故事', color: '#dfcdd1' },
+  { key: 'long', label: '长篇漫画', english: 'THE LONG JOURNEY', hint: '陪你走过漫长岁月的故事' },
+  { key: 'medium', label: '中篇漫画', english: 'JUST THE RIGHT LENGTH', hint: '在恰好的篇幅里，念念不忘' },
+  { key: 'short', label: '短篇漫画', english: 'A BRIEF ENCOUNTER', hint: '短短一瞬，也能留下长久回响' },
+  { key: 'doujin', label: '同人漫画', english: 'MADE WITH LOVE', hint: '因为热爱，而继续的故事' },
 ];
 export function emptyState() {
   return { nickname: '', tagline: '', picks: Object.fromEntries(CATEGORIES.map(({ key }) => [key, null])) };
