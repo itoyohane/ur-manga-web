@@ -1,4 +1,4 @@
-import { CATEGORIES, emptyState, normalizeState } from './model.mjs';
+import { CATEGORIES, emptyState, normalizeState, getSlots } from './model.mjs';
 import { createBangumiSearch } from './search.mjs';
 import { normalizeCoverUrl, coverSource, importCover } from './cover.mjs';
 import { drawRecommendation, POSTER_PALETTE as palette, POSTER_SIZE } from './poster.mjs';
@@ -9,6 +9,7 @@ let state = emptyState();
 try { state = normalizeState(JSON.parse(localStorage.getItem(storageKey))); } catch { /* A new or unavailable store starts empty. */ }
 let activeKey = 'long';
 let draft = null;
+let draftCategory = '';
 let coverPromise = Promise.resolve();
 let coverRevision = 0;
 let coverPending = false;
@@ -18,6 +19,8 @@ let uploadRevision = 0;
 let searchController;
 let searchRevision = 0;
 let searchDebounce;
+let searchOffset = 0;
+let searchIds = new Set();
 let composing = false;
 const bangumiSearch = createBangumiSearch();
 let toastTimer;
@@ -55,12 +58,13 @@ function element(tag, className, text) {
 }
 
 function renderSlots() {
-  $('slots').replaceChildren(...CATEGORIES.map((category, index) => {
+  const slots = getSlots(state);
+  $('slots').replaceChildren(...slots.map((category, index) => {
     const item = state.picks[category.key];
     const button = element('button', `slot${item ? ' filled' : ''}`);
-    button.setAttribute('aria-label', `${category.label}：${item?.title || '尚未选择'}，点击编辑`);
+    button.setAttribute('aria-label', `第 ${index + 1} 本，${category.label}：${item?.title || '尚未选择'}，点击编辑`);
     const top = element('span', 'slot-top');
-    top.append(element('span', 'slot-number', `0${index + 1}`), element('span', 'slot-label', category.label));
+    top.append(element('span', 'slot-number', `0${index + 1}`), element('span', 'slot-label', category.label.replace('漫画', '')));
     const copy = element('span', 'slot-copy');
     const media = element('span', 'slot-media');
     const source = coverSource(item);
@@ -68,22 +72,50 @@ function renderSlots() {
       const image = element('img'); image.alt = ''; image.referrerPolicy = 'no-referrer';
       image.addEventListener('error', () => media.replaceChildren(element('span', 'cover-fallback', '封面加载失败')), { once: true });
       image.src = source; media.append(image);
-    } else media.textContent = item ? '漫' : '+';
+    } else {
+      const icon = element('img', 'empty-cover-icon');
+      icon.src = './assets/book-open.svg'; icon.alt = '';
+      media.append(icon);
+    }
     media.setAttribute('aria-hidden', 'true');
-    copy.append(media, element('span', 'slot-title', item?.title || '选择漫画'));
-    const action = element('span', 'slot-plus', item ? '↗' : '+');
+    const details = element('span', 'slot-details');
+    details.append(element('span', 'slot-title', item?.title || '选择漫画'));
+    details.append(element('span', 'slot-author', item ? item.author || '私藏推荐' : '搜索或手动添加'));
+    details.append(element('span', 'slot-note', item ? item.note || '写下你的推荐理由' : category.hint));
+    copy.append(media, details);
+    const action = element('img', 'slot-plus');
+    action.src = item ? './assets/pencil-simple.svg' : './assets/plus.svg'; action.alt = '';
     action.setAttribute('aria-hidden', 'true');
     button.append(top, copy, action);
     button.addEventListener('click', () => openPicker(category));
     return button;
   }));
-  const count = Object.values(state.picks).filter(Boolean).length;
-  $('progress').textContent = `${count} / 4 已选`;
+  const count = slots.filter(({ key }) => state.picks[key]).length;
+  $('progress').textContent = `${count} / ${slots.length} 已选`;
+  $('selection-count').textContent = `${count} / ${slots.length}`;
+  $('add-slot').hidden = slots.length === 4;
   $('download').disabled = downloading || count === 0;
-  const missing = CATEGORIES.filter(category => state.picks[category.key]?.coverUrl && !state.picks[category.key]?.cover);
+  const missing = slots.filter(category => state.picks[category.key]?.coverUrl && !state.picks[category.key]?.cover);
   $('cover-warning').hidden = !missing.length;
-  $('cover-warning').textContent = missing.length ? `${missing.map(category => category.label).join('、')}的封面暂不能加入下载图片。点击对应漫画上传封面，或使用文字封面下载。` : '';
+  $('cover-warning').textContent = missing.length ? `${missing.map(({ key }) => state.picks[key].title).join('、')}的封面暂不能加入下载图片。点击对应漫画上传封面，或使用文字封面下载。` : '';
 }
+
+$('add-slot').addEventListener('click', () => {
+  if (state.slotCount >= 4) return;
+  state.slotCount = 4;
+  persist(); renderSlots(); schedulePoster();
+});
+
+$('category').replaceChildren(element('option', '', '选择类型（选填）'), ...CATEGORIES.map(category => {
+  const option = element('option', '', category.label);
+  option.value = category.key;
+  return option;
+}));
+$('category').children[0].value = '';
+$('category').addEventListener('change', () => {
+  draftCategory = $('category').value;
+  schedulePoster();
+});
 
 function showDraftCover() {
   if (!draft) return;
@@ -134,16 +166,19 @@ function showDraft() {
 function openPicker(category) {
   composing = false;
   activeKey = category.key;
+  draftCategory = state.categories[activeKey];
+  $('category').value = draftCategory;
   draft = state.picks[activeKey] ? { ...state.picks[activeKey] } : null;
   coverPromise = Promise.resolve();
   coverRevision++;
   coverPending = false;
   $('replace-cover').value = '';
-  $('picker-title').textContent = `我的${category.label}`;
+  $('picker-title').textContent = `第 ${getSlots(state).findIndex(slot => slot.key === activeKey) + 1} 本漫画`;
   $('picker-feedback').hidden = true;
   $('results').setAttribute('aria-busy', 'false');
   $('results').replaceChildren();
   $('search-status').textContent = '输入漫画名称或关键词开始搜索。';
+  $('search-fallback').hidden = true;
   $('query').value = '';
   $('manual-form').reset();
   manualCover = '';
@@ -195,6 +230,7 @@ $('save').addEventListener('click', async () => {
     do { pending = coverPromise; await pending; } while (pending !== coverPromise);
     if (!$('picker').open || draft !== chosen || key !== activeKey) return;
     state.picks[key] = { ...chosen, note: $('recommendation').value.trim() };
+    state.categories[key] = draftCategory;
     persist(); renderSlots(); schedulePoster(); $('picker').close();
   } finally { $('save').disabled = false; $('save').textContent = '保存选择'; }
 });
@@ -214,7 +250,7 @@ $('reset').addEventListener('click', () => {
   persist(); renderSlots(); schedulePoster();
 });
 
-async function runSearch() {
+async function runSearch(append = false, refresh = false) {
   clearTimeout(searchDebounce);
   const query = $('query').value.trim();
   if (!query) return;
@@ -223,14 +259,18 @@ async function runSearch() {
   searchController = new AbortController();
   const controller = searchController;
   const timeout = setTimeout(() => controller.abort(), 30000);
-  $('results').replaceChildren();
+  if (!append) { searchOffset = 0; searchIds = new Set(); $('results').replaceChildren(); }
   $('results').setAttribute('aria-busy', 'true');
+  $('search-fallback').hidden = true;
   $('search-status').textContent = '正在搜索…';
   try {
-    const { items } = await bangumiSearch.search(query, { signal: controller.signal });
+    const { items, nextOffset = null } = await bangumiSearch.search(query, { signal: controller.signal, offset: searchOffset, refresh });
     if (revision !== searchRevision) return;
-    $('search-status').textContent = items.length ? `显示 ${items.length} 部作品，点击选择。` : '暂未找到作品，试试其他关键词或手动添加。';
-    $('results').replaceChildren(...items.map(item => {
+    const fresh = items.filter(item => !searchIds.has(item.id));
+    fresh.forEach(item => searchIds.add(item.id));
+    $('search-status').textContent = searchIds.size ? '' : '暂未找到作品，试试其他关键词或手动添加。';
+    $('search-fallback').hidden = false;
+    const rows = fresh.map(item => {
       const button = element('button', 'result');
       const source = normalizeCoverUrl(item.coverUrl);
       if (source) {
@@ -241,21 +281,38 @@ async function runSearch() {
       } else button.append(element('span', 'result-placeholder', '漫'));
       const copy = element('span', 'result-copy');
       copy.append(element('strong', '', item.title), element('small', '', item.author || item.subtitle));
-      copy.append(element('small', 'result-source', item.source));
-      button.append(copy, element('span', 'result-arrow', '＋'));
-      button.addEventListener('click', () => { coverPromise = chooseResult(item, revision); });
+      copy.append(element('small', 'result-source', [item.source, ...(item.evidence || [])].join(' · ')));
+      const action = element('img', 'result-arrow ui-icon'); action.src = './assets/plus.svg'; action.alt = '';
+      button.append(copy, action);
+      button.addEventListener('click', () => { coverPromise = chooseResult(item, searchRevision); });
       return button;
-    }));
+    });
+    if (append) $('results').append(...rows); else $('results').replaceChildren(...rows);
+    if (nextOffset !== null) {
+      const more = element('button', 'text-button', '加载更多作品');
+      more.type = 'button';
+      more.addEventListener('click', async () => {
+        if (more.disabled) return;
+        more.disabled = true;
+        searchOffset = nextOffset;
+        if (await runSearch(true)) more.remove(); else more.disabled = false;
+      });
+      $('results').append(more);
+    }
+    return true;
   } catch (error) {
     if (revision !== searchRevision) return;
     $('search-status').textContent = error.name === 'AbortError' ? '搜索超时，可以重试或手动添加。' : error.message === 'Failed to fetch' ? '暂时无法连接 Bangumi，可以稍后重试或手动添加。' : error.message;
+    $('search-fallback').hidden = false;
+    return false;
   } finally { clearTimeout(timeout); if (revision === searchRevision) $('results').setAttribute('aria-busy', 'false'); }
 }
 
-$('search-form').addEventListener('submit', event => { event.preventDefault(); runSearch(); });
+$('search-form').addEventListener('submit', event => { event.preventDefault(); runSearch(false, true); });
 function queueSearch() {
   clearTimeout(searchDebounce); searchRevision++; searchController?.abort();
   $('results').replaceChildren(); $('results').setAttribute('aria-busy', 'false');
+  $('search-fallback').hidden = true;
   const query = $('query').value.trim();
   $('search-status').textContent = query ? '输入完成后自动搜索，也可点击搜索。' : '输入漫画名称或关键词开始搜索。';
   if (!composing && query && !$('search-panel').hidden) searchDebounce = setTimeout(runSearch, 700);
@@ -381,21 +438,27 @@ function loadImage(source) {
 
 async function drawPoster(revision, snapshot) {
   // Display-only Canvas may show remote images even when their pixels cannot be exported.
-  const images = await Promise.all(CATEGORIES.map(category => loadImage(coverSource(snapshot.picks[category.key]))));
+  const [images, tape] = await Promise.all([
+    Promise.all(getSlots(snapshot).map(category => loadImage(coverSource(snapshot.picks[category.key])))),
+    loadImage('./assets/washi-tape.png'),
+  ]);
   if (revision !== renderRevision) return;
-  drawRecommendation(ctx, snapshot, images);
-  canvas.setAttribute('aria-label', `${snapshot.nickname || '一位漫画爱好者'}的漫画推荐卡。${CATEGORIES.map(c => `${c.label}：${snapshot.picks[c.key]?.title || '未选择'}`).join('。')}`);
+  drawRecommendation(ctx, snapshot, images, { tape });
+  canvas.setAttribute('aria-label', `${snapshot.nickname || '一位漫画爱好者'}的漫画推荐卡。${getSlots(snapshot).map(c => `${c.label}：${snapshot.picks[c.key]?.title || '未选择'}`).join('。')}`);
 }
 
 function schedulePoster() {
   const revision = ++renderRevision;
   const snapshot = structuredClone(state);
-  if ($('picker').open && draft) snapshot.picks[activeKey] = { ...draft };
+  if ($('picker').open) {
+    snapshot.categories[activeKey] = draftCategory;
+    if (draft) snapshot.picks[activeKey] = { ...draft };
+  }
   drawPoster(revision, snapshot);
 }
 
 async function recoverSavedCovers() {
-  await Promise.all(CATEGORIES.map(async ({ key }) => {
+  await Promise.all(getSlots(state).map(async ({ key }) => {
     const item = state.picks[key];
     if (!item?.coverUrl || item.cover) return;
     if (!coverRecoveries.has(item)) {
@@ -426,8 +489,11 @@ $('download').addEventListener('click', async () => {
     const output = document.createElement('canvas');
     output.width = POSTER_SIZE.width; output.height = POSTER_SIZE.height;
     const snapshot = structuredClone(state);
-    const images = await Promise.all(CATEGORIES.map(category => loadImage(snapshot.picks[category.key]?.cover)));
-    drawRecommendation(output.getContext('2d'), snapshot, images);
+    const [images, tape] = await Promise.all([
+      Promise.all(getSlots(snapshot).map(category => loadImage(snapshot.picks[category.key]?.cover))),
+      loadImage('./assets/washi-tape.png'),
+    ]);
+    drawRecommendation(output.getContext('2d'), snapshot, images, { tape });
     const blob = await new Promise(resolve => output.toBlob(resolve, 'image/png'));
     if (!blob) throw new Error('图片生成失败，请重试。');
     const url = URL.createObjectURL(blob);
@@ -440,7 +506,6 @@ $('download').addEventListener('click', async () => {
   finally { downloading = false; button.disabled = !Object.values(state.picks).some(Boolean); }
 });
 
-$('preview-panel').open = window.matchMedia('(min-width: 900px)').matches;
 renderSlots(); schedulePoster();
 recoverSavedCovers();
 if (document.fonts?.ready) document.fonts.ready.then(schedulePoster);

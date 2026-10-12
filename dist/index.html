@@ -3,44 +3,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#f8f4eb">
   <meta name="description" content="把最喜欢的长篇、中篇、短篇和同人漫画，收进一张可以分享的个人推荐卡。">
   <title>漫画私藏 · MangaList</title>
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-  <header class="topbar"><a class="brand" href="./">漫画私藏<span class="brand-caption" lang="en">MangaList</span></a><span id="progress" role="status">0 / 4 已选</span></header>
+  <header class="topbar"><a class="brand" href="./"><img class="brand-icon" src="./assets/book-open.svg" alt="">漫画私藏<span class="brand-caption" lang="en">MangaList</span></a><span id="progress" role="status">0 / 3 已选</span></header>
   <main>
     <section class="hero" aria-labelledby="page-title">
-      <p class="eyebrow">四种篇幅，一份偏爱</p>
-      <h1 id="page-title">选出你的<span>漫画偏爱</span></h1>
-      <p class="intro">长篇、中篇、短篇、同人，各选一本，<br class="mobile-break">把喜欢收进一张推荐卡。</p>
+      <p class="eyebrow">我的漫画手账</p>
+      <h1 id="page-title">把喜欢的故事，<span>认真收好。</span></h1>
+      <p class="intro">选三本心头好，类型由你定义；还可再加一本。</p>
     </section>
-    <section class="editor" aria-label="选择四类漫画">
-      <div class="section-heading"><h2>挑选你的私藏</h2><span>每类最多一本</span></div>
+    <section class="editor" aria-label="选择漫画与类型">
+      <div class="section-heading"><h2>挑选你的私藏</h2><span id="selection-count">0 / 3</span></div>
       <div id="slots" class="slots"></div>
-      <p class="helper">篇幅由你定义，也可以留空。</p>
+      <button id="add-slot" class="text-button add-slot" type="button">＋ 添加第 4 本漫画</button>
+      <p class="helper">每本可自选长篇、中篇、短篇或同人，类型可重复，也可留空。</p>
       <p id="cover-warning" class="helper" role="status" hidden></p>
-      <details class="personalize"><summary>署名与介绍 <span>选填</span></summary>
-      <label for="nickname">你的名字</label><input id="nickname" maxlength="20" placeholder="一位漫画爱好者" autocomplete="nickname">
-      <label for="tagline">一句话介绍</label><input id="tagline" maxlength="45" placeholder="人生很长，幸好还有漫画。">
-      </details>
+      <section class="personalize" aria-labelledby="personalize-title"><h2 id="personalize-title">署名与介绍 <span>选填</span></h2>
+        <div class="personalize-fields">
+          <div><label for="nickname">你的名字</label><input id="nickname" maxlength="20" placeholder="一位漫画爱好者" autocomplete="nickname"></div>
+          <div><label for="tagline">一句话介绍</label><input id="tagline" maxlength="45" placeholder="把喜欢的故事，认真收好。"></div>
+        </div>
+      </section>
       <div class="actions"><button id="reset" class="text-button">清空</button><button id="download" class="primary" disabled>下载推荐卡 <span>PNG ↓</span></button></div>
     </section>
-    <details id="preview-panel" class="preview"><summary>推荐卡预览 <span>实时更新</span></summary>
-      <div class="preview-top"><span>按你的选择生成</span><span>1200 × 1600 px</span></div>
+    <section id="preview-panel" class="preview" aria-labelledby="preview-title">
+      <div class="preview-heading"><h2 id="preview-title">推荐卡预览</h2><span>实时更新</span></div>
       <div class="canvas-wrap"><canvas id="poster" width="1200" height="1600" role="img" aria-label="个人漫画推荐卡预览"></canvas></div>
-      <p class="preview-note">选好喜欢的漫画，就可以下载分享。</p>
-    </details>
+      <p class="preview-note">1200 × 1600 px · PNG</p>
+    </section>
   </main>
   <footer>选择与封面仅保存在当前浏览器。</footer>
   <dialog id="picker" aria-labelledby="picker-title">
-    <div class="dialog-top"><h2 id="picker-title">选择漫画</h2><button id="close" class="icon-button" aria-label="关闭">×</button></div>
+    <div class="dialog-top"><h2 id="picker-title">选择漫画</h2><button id="close" class="icon-button" aria-label="关闭"><img src="./assets/x.svg" alt="" class="ui-icon"></button></div>
+    <div class="category-field"><label for="category">漫画类型 <span>由你选择</span></label><select id="category"></select></div>
     <div class="tabs" role="tablist" aria-label="添加方式"><button id="search-tab" role="tab" aria-selected="true" aria-controls="search-panel">搜索作品</button><button id="manual-tab" role="tab" aria-selected="false" aria-controls="manual-panel">手动添加</button></div>
     <section id="search-panel" role="tabpanel" aria-labelledby="search-tab">
-      <form id="search-form"><label class="sr-only" for="query">漫画名称或关键词</label><div class="search-row"><input id="query" type="search" enterkeyhint="search" autocomplete="off" spellcheck="false" placeholder="漫画名称或关键词…" required maxlength="100"><button class="primary" type="submit">搜索</button></div></form>
-      <p class="search-tip">搜索结果来自 Bangumi，找不到的作品可手动添加。</p>
+      <form id="search-form"><label class="sr-only" for="query">漫画名称、作者或标签</label><div class="search-row"><input id="query" type="search" enterkeyhint="search" autocomplete="off" spellcheck="false" placeholder="书名、作者，或 百合 伊藤…" required maxlength="100"><button class="primary" type="submit">搜索</button></div></form>
+      <p class="search-tip">支持书名、作者和标签。结果来自 Bangumi。</p>
       <p id="search-status" role="status">输入漫画名称或关键词开始搜索。</p><div id="results" aria-busy="false"></div>
+      <p id="search-fallback" class="search-tip" hidden>没找到想选的漫画？<a href="https://bangumi.tv/book/browser/comic" target="_blank" rel="noopener noreferrer">前往 Bangumi 漫画目录查找 ↗</a>，也可手动添加。</p>
     </section>
     <section id="manual-panel" role="tabpanel" aria-labelledby="manual-tab" hidden>
       <form id="manual-form"><label for="manual-title">漫画名称 <span class="required">*</span></label><input id="manual-title" required maxlength="70" placeholder="这本漫画叫什么？"><label for="manual-author">作者 / 社团</label><input id="manual-author" maxlength="50" placeholder="选填"><label for="cover">封面图片</label><input id="cover" type="file" accept="image/jpeg,image/png,image/webp"><p class="helper">支持 JPG、PNG、WebP，最大 8 MB；也可以使用文字封面。</p><img id="upload-preview" alt="已上传的封面预览" hidden><button class="primary" type="submit">加入我的私藏</button></form>
