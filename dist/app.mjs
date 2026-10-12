@@ -1,5 +1,5 @@
 import { CATEGORIES, emptyState, normalizeState } from './model.mjs';
-import { createSearchEngine, parseQuery } from './search.mjs';
+import { createBangumiSearch } from './search.mjs';
 import { normalizeCoverUrl, coverSource, importCover } from './cover.mjs';
 
 const $ = id => document.getElementById(id);
@@ -18,7 +18,7 @@ let searchController;
 let searchRevision = 0;
 let searchDebounce;
 let composing = false;
-const searchEngine = createSearchEngine();
+const bangumiSearch = createBangumiSearch();
 let toastTimer;
 let renderRevision = 0;
 let renderPromise = Promise.resolve();
@@ -137,10 +137,9 @@ function openPicker(category) {
   $('replace-cover').value = '';
   $('picker-title').textContent = `我的${category.label}`;
   $('picker-feedback').hidden = true;
-  $('search-intent').hidden = true;
   $('results').setAttribute('aria-busy', 'false');
   $('results').replaceChildren();
-  $('search-status').textContent = '支持书名片段、作者和题材搜索。';
+  $('search-status').textContent = '输入漫画名称或关键词开始搜索。';
   $('query').value = '';
   $('manual-form').reset();
   manualCover = '';
@@ -204,15 +203,6 @@ $('reset').addEventListener('click', () => {
   persist(); renderSlots(); schedulePoster();
 });
 
-function describeIntent(query) {
-  const intent = parseQuery(query);
-  const parts = [];
-  if (intent.genres.length) parts.push(`题材：${intent.genres.map(genre => genre.name).join('、')}`);
-  if (intent.terms.length) parts.push(`书名 / 作者：${intent.terms.join('、')}`);
-  $('search-intent').textContent = parts.join(' · ');
-  $('search-intent').hidden = !parts.length;
-}
-
 async function runSearch() {
   clearTimeout(searchDebounce);
   const query = $('query').value.trim();
@@ -222,15 +212,13 @@ async function runSearch() {
   searchController = new AbortController();
   const controller = searchController;
   const timeout = setTimeout(() => controller.abort(), 30000);
-  describeIntent(query);
   $('results').replaceChildren();
   $('results').setAttribute('aria-busy', 'true');
-  $('search-status').textContent = '正在查询作品、作者与题材…';
+  $('search-status').textContent = '正在搜索…';
   try {
-    const { items, warnings } = await searchEngine.search(query, { signal: controller.signal });
+    const { items } = await bangumiSearch.search(query, { signal: controller.signal });
     if (revision !== searchRevision) return;
-    const message = items.length ? `找到 ${items.length} 部作品，点击选择。` : '暂无符合全部关键词的作品。试试减少关键词、换个名字，或手动添加。';
-    $('search-status').textContent = `${message}${warnings.length ? ` ${warnings.join('；')}。` : ''}`;
+    $('search-status').textContent = items.length ? `显示 ${items.length} 部作品，点击选择。` : '暂未找到作品，试试其他关键词或手动添加。';
     $('results').replaceChildren(...items.map(item => {
       const button = element('button', 'result');
       const source = normalizeCoverUrl(item.coverUrl);
@@ -242,26 +230,24 @@ async function runSearch() {
       } else button.append(element('span', 'result-placeholder', '漫'));
       const copy = element('span', 'result-copy');
       copy.append(element('strong', '', item.title), element('small', '', item.author || item.subtitle));
-      copy.append(element('small', 'result-evidence', [...item.evidence, item.source].join(' · ')));
+      copy.append(element('small', 'result-source', item.source));
       button.append(copy, element('span', 'result-arrow', '＋'));
       button.addEventListener('click', () => { coverPromise = chooseResult(item, revision); });
       return button;
     }));
   } catch (error) {
     if (revision !== searchRevision) return;
-    $('search-status').textContent = error.name === 'AbortError' ? '搜索超时，可以重试或手动添加。' : error.message === 'Failed to fetch' ? '暂时无法连接搜索服务，可以稍后重试或手动添加。' : error.message;
+    $('search-status').textContent = error.name === 'AbortError' ? '搜索超时，可以重试或手动添加。' : error.message === 'Failed to fetch' ? '暂时无法连接 Bangumi，可以稍后重试或手动添加。' : error.message;
   } finally { clearTimeout(timeout); if (revision === searchRevision) $('results').setAttribute('aria-busy', 'false'); }
 }
 
 $('search-form').addEventListener('submit', event => { event.preventDefault(); runSearch(); });
-$('search-example').addEventListener('click', () => { $('query').value = '百合 雪子'; runSearch(); });
 function queueSearch() {
   clearTimeout(searchDebounce); searchRevision++; searchController?.abort();
   $('results').replaceChildren(); $('results').setAttribute('aria-busy', 'false');
   const query = $('query').value.trim();
-  describeIntent(query);
-  $('search-status').textContent = query ? '输入完成后自动搜索，也可点击搜索。' : '支持书名片段、作者和题材搜索。';
-  if (!composing && query.length >= 2 && !$('search-panel').hidden) searchDebounce = setTimeout(runSearch, 700);
+  $('search-status').textContent = query ? '输入完成后自动搜索，也可点击搜索。' : '输入漫画名称或关键词开始搜索。';
+  if (!composing && query && !$('search-panel').hidden) searchDebounce = setTimeout(runSearch, 700);
 }
 $('query').addEventListener('compositionstart', () => { composing = true; clearTimeout(searchDebounce); searchRevision++; searchController?.abort(); });
 $('query').addEventListener('compositionend', () => { composing = false; queueSearch(); });

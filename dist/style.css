@@ -461,26 +461,6 @@ dialog::backdrop {
   color: var(--muted);
   margin: 8px 0;
 }
-.example {
-  display: inline-block;
-  background: none;
-  color: var(--pink);
-  font-size: 12px;
-  min-height: 44px;
-  padding: 6px;
-  text-decoration: underline;
-  text-decoration-color: var(--line);
-  text-underline-offset: 4px;
-}
-.example:hover {
-  text-decoration-color: var(--ink);
-}
-#search-intent {
-  background: var(--surface);
-  border-radius: 8px;
-  padding: 8px 12px;
-  margin: 6px 0;
-}
 #search-status {
   font-size: 14px;
   color: var(--muted);

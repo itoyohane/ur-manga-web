@@ -65,12 +65,16 @@ test('selected covers survive a failed import and uploads cannot be replaced by 
   };
   const url = 'https://lain.bgm.tv/pic/cover/l/test.jpg';
   let fetchCover = async () => { throw new TypeError('Failed to fetch'); };
-  globalThis.fetch = async source => {
+  let searchFails = false;
+  globalThis.fetch = async (source, options) => {
     if (source === url) return fetchCover();
-    const data = source.includes('/search/subjects') ? { data: [{
+    assert.equal(source, 'https://api.bgm.tv/v0/search/subjects?limit=24&offset=0');
+    assert.equal(options.method, 'POST');
+    if (searchFails) throw new TypeError('Failed to fetch');
+    const data = { data: [{
       id: 1, type: 1, name: '测试漫画', platform: '漫画', tags: [],
       images: { large: url }, infobox: [{ key: '作者', value: '测试作者' }],
-    }] } : source.includes('graphql.anilist.co') ? { data: { titles: { media: [] }, authors: { staff: [] } } } : { data: [] };
+    }] };
     return { ok: true, json: async () => data };
   };
   const settle = () => new Promise(resolve => setImmediate(resolve));
@@ -148,4 +152,14 @@ test('selected covers survive a failed import and uploads cannot be replaced by 
   assert.equal(content.filter(label => label.value.startsWith('荐')).length, 2);
   assert.ok(content.some(label => label.value.endsWith('…')));
   assert.ok(content.every(label => label.width <= 792 && label.x === 312 && label.y > 788 && label.y < 1100));
+
+  await byId('slots').children[3].fire('click');
+  searchFails = true;
+  byId('query').value = '另一个关键词';
+  await byId('search-form').fire('submit', { preventDefault() {} });
+  await settle();
+  assert.equal(byId('results').children.length, 0);
+  assert.match(byId('search-status').textContent, /无法连接/);
+  assert.equal(byId('results').attrs['aria-busy'], 'false');
+  byId('picker').close();
 });

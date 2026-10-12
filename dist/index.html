@@ -35,10 +35,9 @@
     <div class="dialog-top"><h2 id="picker-title">选择漫画</h2><button id="close" class="icon-button" aria-label="关闭">×</button></div>
     <div class="tabs" role="tablist" aria-label="添加方式"><button id="search-tab" role="tab" aria-selected="true" aria-controls="search-panel">搜索作品</button><button id="manual-tab" role="tab" aria-selected="false" aria-controls="manual-panel">手动添加</button></div>
     <section id="search-panel" role="tabpanel" aria-labelledby="search-tab">
-      <form id="search-form"><label class="sr-only" for="query">书名、作者或题材</label><div class="search-row"><input id="query" type="search" enterkeyhint="search" autocomplete="off" spellcheck="false" placeholder="书名、作者或题材…" required maxlength="100"><button class="primary" type="submit">搜索</button></div></form>
-      <p class="search-tip">可以组合关键词：<button type="button" id="search-example" class="example">百合 雪子 ↗</button></p>
-      <p id="search-intent" class="helper" hidden></p>
-      <p id="search-status" role="status">支持书名片段、作者和题材搜索。</p><div id="results" aria-busy="false"></div>
+      <form id="search-form"><label class="sr-only" for="query">漫画名称或关键词</label><div class="search-row"><input id="query" type="search" enterkeyhint="search" autocomplete="off" spellcheck="false" placeholder="漫画名称或关键词…" required maxlength="100"><button class="primary" type="submit">搜索</button></div></form>
+      <p class="search-tip">搜索结果来自 Bangumi，找不到的作品可手动添加。</p>
+      <p id="search-status" role="status">输入漫画名称或关键词开始搜索。</p><div id="results" aria-busy="false"></div>
     </section>
     <section id="manual-panel" role="tabpanel" aria-labelledby="manual-tab" hidden>
       <form id="manual-form"><label for="manual-title">漫画名称 <span class="required">*</span></label><input id="manual-title" required maxlength="70" placeholder="这本漫画叫什么？"><label for="manual-author">作者 / 社团</label><input id="manual-author" maxlength="50" placeholder="选填"><label for="cover">封面图片</label><input id="cover" type="file" accept="image/jpeg,image/png,image/webp"><p class="helper">支持 JPG、PNG、WebP，最大 8 MB；也可以使用文字封面。</p><img id="upload-preview" alt="已上传的封面预览" hidden><button class="primary" type="submit">加入我的私藏</button></form>
