@@ -11,10 +11,17 @@ test('selected covers survive a failed import and uploads cannot be replaced by 
     }
   });
   const drawnImages = [];
+  const imagePositions = [];
+  const surfaces = [];
+  const frames = [];
+  const labels = [];
   let decodedCovers = 0;
   const pen = new Proxy({
-    measureText: value => ({ width: value.length * 19 }),
-    drawImage: image => drawnImages.push(image.src),
+    measureText: value => ({ width: Array.from(value).reduce((width, char) => width + (/[^\x00-\x7f]/.test(char) ? 1 : .55), 0) * (Number(pen.font?.match(/([\d.]+)px/)?.[1]) || 19) }),
+    drawImage: (image, ...bounds) => { drawnImages.push(image.src); imagePositions.push(bounds); },
+    fillRect: (...bounds) => surfaces.push(bounds),
+    strokeRect: (...bounds) => frames.push(bounds),
+    fillText: (value, x, y) => labels.push({ value, x, y, align: pen.textAlign, width: pen.measureText(value).width }),
   }, { get: (target, key) => key in target ? target[key] : () => {} });
   class Element {
     constructor() {
@@ -69,6 +76,16 @@ test('selected covers survive a failed import and uploads cannot be replaced by 
   const settle = () => new Promise(resolve => setImmediate(resolve));
   await import('../dist/app.mjs');
   await settle();
+  assert.deepEqual(surfaces.slice(1, 5), [
+    [96, 194, 168, 252], [936, 506, 168, 252],
+    [96, 818, 168, 252], [936, 1130, 168, 252],
+  ], 'Four portrait cover areas alternate left, right, left, right');
+  assert.ok(frames.some(bounds => JSON.stringify(bounds) === JSON.stringify([64, 164, 1072, 1248])), 'One outer frame contains all four rows');
+  assert.deepEqual(labels.filter(label => /^0[1-4]  \/  /.test(label.value)).map(({ x, y, align }) => ({ x, y, align })), [
+    { x: 312, y: 213, align: 'left' }, { x: 888, y: 525, align: 'right' },
+    { x: 312, y: 837, align: 'left' }, { x: 888, y: 1149, align: 'right' },
+  ], 'Each row places its text opposite the portrait cover');
+  assert.equal(pen.textAlign, 'left', 'Reset alignment after painting mirrored rows');
   const search = async index => {
     await byId('slots').children[index].fire('click');
     byId('query').value = '测试漫画';
@@ -111,5 +128,24 @@ test('selected covers survive a failed import and uploads cannot be replaced by 
   assert.equal(byId('selected-cover-wrap').children[0].src, uploaded, 'A late online import must not overwrite the uploaded preview');
   await byId('save').fire('click');
   assert.equal(saved.picks.medium.cover, uploaded);
+  await settle();
+  assert.ok(imagePositions.some(([x, y, width, height]) => x === 96 && y === 194 && width === 168 && height === 252));
+  assert.ok(imagePositions.some(([x, y, width, height]) => x === 936 && y === 506 && width === 168 && height === 252));
   assert.ok(drawnImages.every(source => !source.startsWith('https:')));
+
+  // Max-length user content must remain inside a single horizontal row.
+  await byId('slots').children[2].fire('click');
+  await byId('manual-tab').fire('click');
+  byId('manual-title').value = '长'.repeat(70);
+  byId('manual-author').value = '作'.repeat(50);
+  await byId('manual-form').fire('submit', { preventDefault() {} });
+  byId('recommendation').value = '荐'.repeat(80);
+  const start = labels.length;
+  await byId('save').fire('click');
+  await settle();
+  const content = labels.slice(start).filter(label => /^[长作荐]/.test(label.value));
+  assert.equal(content.filter(label => label.value.startsWith('长')).length, 2);
+  assert.equal(content.filter(label => label.value.startsWith('荐')).length, 2);
+  assert.ok(content.some(label => label.value.endsWith('…')));
+  assert.ok(content.every(label => label.width <= 792 && label.x === 312 && label.y > 788 && label.y < 1100));
 });

@@ -151,6 +151,12 @@ components:
     padding: "24px"
 ---
 
+## MangaList adaptations
+
+The repository adapts this base system with restrained rose accents: `#ae3e6a` for emphasis, `#933059` for hover, `#fff1f6` for tinted surfaces, and `#edbfd1` for selected borders and dividers. Keep the white canvas and dark body text. Apply pink to the hero emphasis, category numbers, progress chip, selected states, and primary download action.
+
+The exported recommendation card follows the supplied sketch: four stacked horizontal rows inside one frame, ordered long, medium, short, and doujin. Portrait covers alternate left, right, left, and right; the adjacent text mirrors its alignment. Keep the signature header compact, preserve full covers, and wrap or truncate text within each row. The editor retains its mobile two-column selection grid.
+
 ## Overview
 
 Mobbin Minimal feels crisp, premium, and highly editorial. The interface relies on extreme white space, oversized type, and a restrained monochrome palette to communicate confidence and clarity. It is optimized for a design-savvy audience that values speed, visual order, and a curated sense of taste more than decorative UI.

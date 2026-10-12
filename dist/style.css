@@ -10,6 +10,10 @@
   --surface: #f3f4f6;
   --overlay: #41414129;
   --error: #d92d20;
+  --pink: #ae3e6a;
+  --pink-hover: #933059;
+  --pink-soft: #fff1f6;
+  --pink-line: #edbfd1;
   --radius-card: 4px;
   --radius-panel: 24px;
   --radius-pill: 9999px;
@@ -47,7 +51,7 @@ button:disabled {
 }
 button:focus-visible, a:focus-visible, summary:focus-visible,
 input:focus-visible, textarea:focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--pink);
   outline-offset: 4px;
 }
 a {
@@ -74,7 +78,7 @@ a {
   letter-spacing: -.6px;
 }
 .brand-caption {
-  color: var(--muted);
+  color: var(--pink);
   font-size: 12px;
   font-weight: 400;
   letter-spacing: 0;
@@ -82,7 +86,10 @@ a {
 #progress {
   flex-shrink: 0;
   font-size: 12px;
-  color: var(--muted);
+  color: var(--pink);
+  background: var(--pink-soft);
+  border-radius: var(--radius-pill);
+  padding: 6px 12px;
   font-variant-numeric: tabular-nums;
 }
 main {
@@ -103,6 +110,9 @@ h1 {
   margin: 0 0 var(--space-md);
   font-weight: 650;
   line-height: 1.15;
+}
+h1 span {
+  color: var(--pink);
 }
 .intro {
   font-size: 20px;
@@ -140,7 +150,8 @@ h1 {
   overflow: hidden;
 }
 .slot:hover {
-  border-color: var(--ink);
+  border-color: var(--pink);
+  background: var(--pink-soft);
 }
 .slot-top {
   display: flex;
@@ -149,7 +160,7 @@ h1 {
 }
 .slot-number {
   font-size: 12px;
-  color: var(--muted);
+  color: var(--pink);
   font-variant-numeric: tabular-nums;
 }
 .slot-label {
@@ -180,7 +191,8 @@ h1 {
   color: var(--muted);
 }
 .slot.filled {
-  border-color: #a3a3a3;
+  border-color: var(--pink-line);
+  background: var(--pink-soft);
 }
 .slot-media {
   height: 104px;
@@ -313,6 +325,12 @@ input[type=file]::file-selector-button {
   gap: var(--space-sm);
   padding-inline: var(--space-md);
 }
+.actions > .primary:not(:disabled) {
+  background: var(--pink);
+}
+.actions > .primary:hover:not(:disabled) {
+  background: var(--pink-hover);
+}
 .primary span {
   font-size: 12px;
   font-weight: 400;
@@ -423,7 +441,7 @@ dialog::backdrop {
   flex: 1;
 }
 .tabs button[aria-selected=true] {
-  background: var(--paper);
+  background: var(--pink-soft);
   color: var(--ink);
   font-weight: 600;
 }
@@ -446,7 +464,7 @@ dialog::backdrop {
 .example {
   display: inline-block;
   background: none;
-  color: var(--ink);
+  color: var(--pink);
   font-size: 12px;
   min-height: 44px;
   padding: 6px;
@@ -494,7 +512,7 @@ dialog::backdrop {
   min-height: 96px;
 }
 .result:hover {
-  border-color: var(--ink);
+  border-color: var(--pink);
 }
 .result img, .result-placeholder {
   width: 44px;
@@ -588,7 +606,7 @@ dialog::backdrop {
   text-align: center;
 }
 #cover-warning {
-  border-left: 2px solid var(--ink);
+  border-left: 2px solid var(--pink);
   padding-left: 12px;
 }
 .modal-actions {

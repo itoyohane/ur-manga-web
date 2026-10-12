@@ -26,7 +26,7 @@ const imageCache = new Map();
 const canvas = $('poster');
 const ctx = canvas.getContext('2d');
 const font = '"M Saans Variable", "M Saans 600", -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
-const palette = { paper: '#ffffff', ink: '#000000', muted: '#717171', surface: '#f3f4f6', line: '#e5e7eb', dark: '#141414' };
+const palette = { paper: '#ffffff', ink: '#000000', muted: '#717171', surface: '#f3f4f6', line: '#e5e7eb', dark: '#141414', pink: '#ae3e6a', pinkLine: '#edbfd1' };
 
 function toast(message) {
   if ($('picker').open) {
@@ -414,35 +414,43 @@ async function drawPoster(revision, snapshot) {
   const images = await Promise.all(CATEGORIES.map(category => loadImage(snapshot.picks[category.key]?.cover)));
   if (revision !== renderRevision) return;
   ctx.fillStyle = palette.paper; ctx.fillRect(0, 0, 1200, 1500);
-  text('漫画私藏', 78, 95, 28, palette.ink, 600);
-  text('MangaList', 992, 92, 22, palette.muted);
-  ctx.strokeStyle = palette.line; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(78, 122); ctx.lineTo(1122, 122); ctx.stroke();
-  text('我的漫画偏爱', 78, 224, 80, palette.ink, 650);
-  fitText(`${snapshot.nickname.trim() || '一位漫画爱好者'} 的四格私藏`, 80, 282, 25, 1040, palette.muted);
-  fitText(snapshot.tagline.trim() || '人生很长，幸好还有漫画。', 80, 334, 23, 1040, palette.muted);
+  ctx.textAlign = 'left';
+  text('我的漫画偏爱', 64, 73, 40, palette.ink, 650);
+  ctx.textAlign = 'right';
+  fitText(snapshot.nickname.trim() || '一位漫画爱好者', 1136, 70, 22, 600, palette.muted);
+  ctx.textAlign = 'left';
+  fitText(snapshot.tagline.trim() || '人生很长，幸好还有漫画。', 64, 119, 22, 1072, palette.muted);
+  // Four horizontal rows follow the supplied sketch, with alternating portrait covers.
+  const frame = { x: 64, y: 164, width: 1072, rowHeight: 312 };
   CATEGORIES.forEach((category, index) => {
-    const x = 78 + (index % 2) * 542;
-    const y = 388 + Math.floor(index / 2) * 475;
+    const y = frame.y + index * frame.rowHeight;
+    const rightCover = index % 2 === 1;
+    const coverX = rightCover ? 936 : 96;
+    const copyX = rightCover ? 888 : 312;
+    const copyWidth = 792;
     const item = snapshot.picks[category.key];
-    ctx.fillStyle = palette.paper; ctx.fillRect(x, y, 502, 438);
-    ctx.strokeStyle = palette.line; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, 500, 436);
-    text(`0${index + 1}`, x + 19, y + 35, 19, palette.muted);
-    text(category.label, x + 68, y + 35, 24, palette.ink, 600);
-    drawCover(images[index], x + 18, y + 57, 466, 232);
-    if (!item) {
-      text('留给下一本心头好', x + 20, y + 332, 25, palette.muted, 500);
-      text(category.hint, x + 20, y + 382, 19, palette.muted);
-    } else {
-      fitText(item.title, x + 20, y + 329, 27, 462, palette.ink, 600);
-      if (item.author) fitText(item.author, x + 20, y + 358, 17, 462, palette.muted);
-      ctx.font = `19px ${font}`;
-      const lines = wrap(item.note || '这份喜欢，想与你分享。', 462, 2);
-      lines.forEach((line, lineIndex) => text(line, x + 20, y + 391 + lineIndex * 27, 19, palette.muted));
+    drawCover(images[index], coverX, y + 30, 168, 252);
+    ctx.textAlign = rightCover ? 'right' : 'left';
+    text(`0${index + 1}  /  ${category.label}`, copyX, y + 49, 20, palette.pink, 600);
+    ctx.font = `600 34px ${font}`;
+    const titles = wrap(item?.title || '留给下一本心头好', copyWidth, 2);
+    titles.forEach((line, lineIndex) => text(line, copyX, y + 106 + lineIndex * 42, 34, item ? palette.ink : palette.muted, 600));
+    if (item?.author) fitText(item.author, copyX, y + 188, 20, copyWidth, palette.muted);
+    ctx.font = `22px ${font}`;
+    const notes = wrap(item ? item.note || '这份喜欢，想与你分享。' : category.hint, copyWidth, 2);
+    notes.forEach((line, lineIndex) => text(line, copyX, y + 246 + lineIndex * 30, 22, palette.muted));
+    if (index > 0) {
+      ctx.strokeStyle = palette.pinkLine; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(frame.x, y); ctx.lineTo(frame.x + frame.width, y); ctx.stroke();
     }
   });
-  ctx.strokeStyle = palette.line; ctx.beginPath(); ctx.moveTo(78, 1382); ctx.lineTo(1122, 1382); ctx.stroke();
-  text('每一份喜欢，都有自己的理由。', 78, 1432, 20, palette.muted);
-  text('My manga, my picks.', 923, 1430, 18, palette.muted);
+  ctx.strokeStyle = palette.dark; ctx.lineWidth = 2;
+  ctx.strokeRect(frame.x, frame.y, frame.width, frame.rowHeight * CATEGORIES.length);
+  ctx.textAlign = 'left';
+  text('漫画私藏 · MangaList', 64, 1462, 19, palette.pink, 500);
+  ctx.textAlign = 'right';
+  text('每一份喜欢，都有自己的理由。', 1136, 1462, 19, palette.muted);
+  ctx.textAlign = 'left';
   canvas.setAttribute('aria-label', `${snapshot.nickname || '一位漫画爱好者'}的漫画推荐卡。${CATEGORIES.map(c => `${c.label}：${snapshot.picks[c.key]?.title || '未选择'}`).join('。')}`);
 }
 
