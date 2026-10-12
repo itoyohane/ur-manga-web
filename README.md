@@ -46,6 +46,12 @@ python -m http.server 8000 --directory dist
 
 搜索关键词发送给 Bangumi / AniList。上传封面在浏览器中缩放，支持 JPG、PNG、WebP，最大 8 MB；封面和选择仅保存于当前浏览器，不上传服务器。外部封面读取受跨域限制，失败时使用占位封面，可手动上传替换。清除网站数据会删除本地收藏卡。
 
+## Sites 部署
+
+`.openai/hosting.json` 记录现有 Sites 项目与静态目录 `dist/`。使用 Sites 发布时复用该项目，先同步源代码，再打包并发布；GitHub 用于项目版本管理。新站点默认仅所有者可访问，公开分享需要调整站点访问设置。
+
+部署环境必须允许连接 Sites 源码仓库。同步失败时，站点尚未上线；预设域名不代表部署成功。发布凭证仅通过 Sites 工具和进程标准输入传递，不写入源码或配置文件。
+
 ## 目录与检查
 
 - `dist/`：可直接托管的 HTML、CSS、原生 JavaScript 与 Canvas 图片生成。
